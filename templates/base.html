@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}EventHub{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    [x-cloak]{display:none}
+    .gradient-bg { background: linear-gradient(135deg, #3c7d80 80%); }
+    .card-hover  { transition: transform .2s, box-shadow .2s; }
+    .card-hover:hover { transform: translateY(-3px); box-shadow: 0 20px 40px rgba(0,0,0,.15); }
+    .progress-bar { transition: width .6s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+    .fade-in { animation: fadeIn .4s ease; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .live-dot { animation: pulse-dot 1.5s ease infinite; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+{% block content %}{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

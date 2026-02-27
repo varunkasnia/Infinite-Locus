@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+{% block title %}User Dashboard · EventHub{% endblock %}
+
+{% block content %}
+
+<nav class="gradient-bg shadow-lg sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <span class="text-white font-bold text-xl">EventHub</span>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 bg-green-400 rounded-full live-dot"></div>
+        <span class="text-white/80 text-sm">Live</span>
+      </div>
+
+      <div class="bg-white/15 rounded-xl p-1 flex gap-1">
+        <button id="tab-all" onclick="showTab('all')"
+          class="px-3 py-1.5 text-sm font-medium rounded-lg text-white bg-white/25 transition">All Events</button>
+        <button id="tab-my" onclick="showTab('my')"
+          class="px-3 py-1.5 text-sm font-medium rounded-lg text-white/70 hover:bg-white/15 transition">My Registrations</button>
+      </div>
+      <span id="user-name" class="text-white font-medium text-sm"></span>
+      <button onclick="logout()" class="text-white/70 hover:text-white text-sm transition">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<div id="reminder-banner" class="hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-amber-800 text-sm font-medium"></div>
+
+<div id="toast" class="fixed bottom-6 right-6 z-50 hidden">
+  <div class="px-5 py-3 rounded-xl shadow-2xl text-white font-medium flex items-center gap-2" id="toast-inner">
+    <span id="toast-icon"></span>
+    <span id="toast-msg"></span>
+  </div>
+</div>
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+  <div id="view-all">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">Upcoming Events</h1>
+        <p class="text-gray-500 text-sm mt-0.5">Discover and register for events</p>
+      </div>
+      <button onclick="loadEvents()"
+        class="flex items-center gap-2 text-sm text-[#3c7d80] hover:underline">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Refresh
+      </button>
+    </div>
+
+    <div id="events-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+
+    <div id="empty-all" class="hidden text-center py-20 text-gray-400">
+      <svg class="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <p class="font-medium">No upcoming events</p>
+      <p class="text-sm">Check back soon!</p>
+    </div>
+  </div>
+
+  <div id="view-my" class="hidden">
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">My Registrations</h1>
+      <p class="text-gray-500 text-sm mt-0.5">Events you've signed up for</p>
+    </div>
+    <div id="my-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+    <div id="empty-my" class="hidden text-center py-20 text-gray-400">
+      <p class="font-medium">No registrations yet</p>
+      <p class="text-sm">Browse upcoming events and register!</p>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TOKEN = localStorage.getItem('token');
+const USER  = JSON.parse(localStorage.getItem('user') || '{}');
+
+if (!TOKEN || USER.role !== 'user') {
+  window.location.href = '/login';
+}
+document.getElementById('user-name').textContent = USER.name || '';
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+    ...opts,
+  });
+  if (res.status === 401) { window.location.href = '/login'; }
+  return res;
+}
+
+const socket = io();
+socket.on('update_count', ({ event_id, new_count, max_capacity }) => {
+  updateEventCard(event_id, new_count, max_capacity);
+});
+socket.on('event_reminder', (data) => {
+  const b = document.getElementById('reminder-banner');
+  b.textContent = `Time & Date "${data.title}" starts within 24 hours! 📍 ${data.location || 'TBD'}`;
+  b.classList.remove('hidden');
+});
+
+let myRegistrations = new Set();
+
+function showToast(msg, success = true) {
+  const t     = document.getElementById('toast');
+  const inner = document.getElementById('toast-inner');
+  const icon  = document.getElementById('toast-icon');
+  document.getElementById('toast-msg').textContent = msg;
+  inner.className   = `px-5 py-3 rounded-xl shadow-2xl text-white font-medium flex items-center gap-2 ${success ? 'bg-green-600' : 'bg-red-600'}`;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 3000);
+}
+
+async function loadMyRegistrations() {
+  const res  = await api('/api/registrations/my');
+  const data = await res.json();
+  myRegistrations = new Set(data.map(r => r.event_id));
+  return data;
+}
+
+function buildEventCard(ev, registered) {
+  const pct     = Math.min((ev.registration_count / ev.max_capacity) * 100, 100);
+  const full    = ev.registration_count >= ev.max_capacity;
+  const date    = new Date(ev.event_date);
+  const dateStr = date.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+  const timeStr = date.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+
+  const barColor = full ? 'bg-red-500' : pct >= 75 ? 'bg-amber-500' : 'bg-[#3c7d80]';
+  const spots = ev.max_capacity - ev.registration_count;
+
+  return `
+  <div class="bg-white rounded-2xl shadow overflow-hidden card-hover fade-in" id="event-card-${ev.id}">
+    <div class="h-2 ${full ? 'bg-red-500' : pct >= 75 ? 'bg-amber-400' : 'gradient-bg'}"></div>
+    <div class="p-5">
+      <div class="flex justify-between items-start gap-2 mb-3">
+        <h3 class="text-lg font-bold text-gray-800 leading-tight">${ev.title}</h3>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          <div class="w-2 h-2 rounded-full live-dot ${full ? 'bg-red-400' : 'bg-green-400'}"></div>
+          <span id="badge-${ev.id}" class="text-xs font-bold ${full ? 'text-red-600' : 'text-green-600'}">
+            ${full ? 'FULL' : spots + ' left'}
+          </span>
+        </div>
+      </div>
+
+      ${ev.description ? `<p class="text-gray-500 text-sm mb-3 line-clamp-2">${ev.description}</p>` : ''}
+
+      <div class="space-y-1 mb-4">
+        <div class="flex items-center gap-2 text-xs text-gray-500">
+          <span>Date & Time -> </span><span>${dateStr} · ${timeStr}</span>
+        </div>
+        ${ev.location ? `<div class="flex items-center gap-2 text-xs text-gray-500"><span>Loc -> </span><span>${ev.location}</span></div>` : ''}
+        <div class="flex items-center gap-2 text-xs text-gray-500">
+          <span>Organisor -> </span><span>By ${ev.organizer || 'Organizer'}</span>
+        </div>
+      </div>
+
+      <div class="mb-4">
+        <div class="flex justify-between text-xs text-gray-500 mb-1">
+          <span>Capacity</span>
+          <span id="count-label-${ev.id}">
+            <span id="count-${ev.id}" class="font-bold text-[#3c7d80]">${ev.registration_count}</span>
+            / ${ev.max_capacity}
+          </span>
+        </div>
+        <div class="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+          <div id="bar-${ev.id}" class="h-full rounded-full progress-bar ${barColor}"
+               style="width:${pct}%"></div>
+        </div>
+      </div>
+
+      ${registered
+        ? `<button id="reg-btn-${ev.id}" onclick="cancelRegistration(${ev.id})"
+            class="w-full py-2.5 text-sm font-semibold border-2 border-[#3c7d80]/20 text-[#3c7d80] rounded-xl hover:bg-[#3c7d80]/5 transition">
+            ✓ Registered · Cancel
+          </button>`
+        : `<button id="reg-btn-${ev.id}" onclick="register(${ev.id})" ${full ? 'disabled' : ''}
+            class="w-full py-2.5 text-sm font-semibold rounded-xl transition text-white ${full
+              ? 'bg-gray-300 cursor-not-allowed'
+              : 'bg-[#3c7d80] hover:opacity-90'}">
+            ${full ? 'Event Full' : '+ Register Now'}
+          </button>`
+      }
+    </div>
+  </div>`;
+}
+
+async function loadEvents() {
+  await loadMyRegistrations();
+
+  const res    = await api('/api/events/');
+  const events = await res.json();
+  const grid   = document.getElementById('events-grid');
+  const empty  = document.getElementById('empty-all');
+
+  if (!events.length) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  grid.innerHTML = events.map(ev => buildEventCard(ev, myRegistrations.has(ev.id))).join('');
+}
+
+async function loadMyEvents() {
+  const myRegs = await loadMyRegistrations();
+  const grid   = document.getElementById('my-grid');
+  const empty  = document.getElementById('empty-my');
+
+  if (!myRegs.length) {
+    grid.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  const events = await Promise.all(myRegs.map(r =>
+    api(`/api/events/${r.event_id}`).then(res => res.json())
+  ));
+  grid.innerHTML = events.map(ev => buildEventCard(ev, true)).join('');
+}
+
+async function register(eventId) {
+  const btn = document.getElementById(`reg-btn-${eventId}`);
+  btn.disabled = true;
+  btn.textContent = 'Registering…';
+
+  const res  = await api(`/api/registrations/${eventId}`, { method: 'POST' });
+  const data = await res.json();
+
+  if (res.ok) {
+    myRegistrations.add(eventId);
+    showToast('Successfully registered');
+    btn.className = 'w-full py-2.5 text-sm font-semibold border-2 border-[#3c7d80]/20 text-[#3c7d80] rounded-xl hover:bg-[#3c7d80]/5 transition';
+    btn.textContent = 'Registered · Cancel';
+    btn.setAttribute('onclick', `cancelRegistration(${eventId})`);
+    btn.disabled = false;
+  } else {
+    showToast(data.error || 'Registration failed', false);
+    btn.disabled = false;
+    btn.textContent = 'Register Now';
+  }
+}
+
+async function cancelRegistration(eventId) {
+  if (!confirm('Cancel your registration?')) return;
+  const btn = document.getElementById(`reg-btn-${eventId}`);
+  btn.disabled = true;
+
+  const res = await api(`/api/registrations/${eventId}`, { method: 'DELETE' });
+  if (res.ok) {
+    myRegistrations.delete(eventId);
+    showToast('Registration cancelled');
+    btn.className = 'w-full py-2.5 text-sm font-semibold rounded-xl transition text-white bg-[#3c7d80] hover:opacity-90';
+    btn.textContent = '+ Register Now';
+    btn.setAttribute('onclick', `register(${eventId})`);
+    btn.disabled = false;
+  } else {
+    showToast('Failed to cancel', false);
+    btn.disabled = false;
+  }
+}
+
+function updateEventCard(eventId, newCount, maxCapacity) {
+  const countEl = document.getElementById(`count-${eventId}`);
+  const barEl   = document.getElementById(`bar-${eventId}`);
+  const badgeEl = document.getElementById(`badge-${eventId}`);
+  const btnEl   = document.getElementById(`reg-btn-${eventId}`);
+  if (!countEl) return;
+
+  const pct   = Math.min((newCount / maxCapacity) * 100, 100);
+  const full  = newCount >= maxCapacity;
+  const spots = maxCapacity - newCount;
+
+  countEl.textContent = newCount;
+  if (barEl) {
+    barEl.style.width = pct + '%';
+    barEl.className = `h-full rounded-full progress-bar ${full ? 'bg-red-500' : pct >= 75 ? 'bg-amber-500' : 'bg-[#3c7d80]'}`;
+  }
+  if (badgeEl) {
+    badgeEl.textContent = full ? 'FULL' : spots + ' left';
+    badgeEl.className = `text-xs font-bold ${full ? 'text-red-600' : 'text-green-600'}`;
+  }
+  if (btnEl && !myRegistrations.has(eventId)) {
+    if (full) {
+      btnEl.disabled = true;
+      btnEl.textContent = 'Event Full';
+      btnEl.className = 'w-full py-2.5 text-sm font-semibold rounded-xl bg-gray-300 cursor-not-allowed text-white';
+    } else {
+      btnEl.disabled = false;
+      btnEl.textContent = '+ Register Now';
+      btnEl.className = 'w-full py-2.5 text-sm font-semibold rounded-xl transition text-white bg-[#3c7d80] hover:opacity-90';
+    }
+  }
+}
+
+function showTab(tab) {
+  const all  = document.getElementById('view-all');
+  const my   = document.getElementById('view-my');
+  const tAll = document.getElementById('tab-all');
+  const tMy  = document.getElementById('tab-my');
+
+  if (tab === 'all') {
+    all.classList.remove('hidden');
+    my.classList.add('hidden');
+    tAll.className = 'px-3 py-1.5 text-sm font-medium rounded-lg text-white bg-white/25 transition';
+    tMy.className  = 'px-3 py-1.5 text-sm font-medium rounded-lg text-white/70 hover:bg-white/15 transition';
+    loadEvents();
+  } else {
+    all.classList.add('hidden');
+    my.classList.remove('hidden');
+    tAll.className = 'px-3 py-1.5 text-sm font-medium rounded-lg text-white/70 hover:bg-white/15 transition';
+    tMy.className  = 'px-3 py-1.5 text-sm font-medium rounded-lg text-white bg-white/25 transition';
+    loadMyEvents();
+  }
+}
+
+async function logout() {
+  await api('/api/auth/logout', { method: 'POST' });
+  localStorage.clear();
+  window.location.href = '/login';
+}
+
+loadEvents();
+</script>
+{% endblock %}

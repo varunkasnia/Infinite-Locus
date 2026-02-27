@@ -1,0 +1,410 @@
+{% extends "base.html" %}
+{% block title %}Organizer Dashboard · EventHub{% endblock %}
+
+{% block content %}
+<nav class="gradient-bg shadow-lg sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <svg class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+      </svg>
+      <span class="text-white font-bold text-xl">EventHub</span>
+      <span class="bg-white/20 text-white text-xs px-2 py-0.5 rounded-full ml-1">Organizer</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 bg-green-400 rounded-full live-dot"></div>
+        <span class="text-white/80 text-sm">Live</span>
+      </div>
+      <span id="user-name" class="text-white font-medium"></span>
+      <button onclick="logout()"
+        class="text-white/70 hover:text-white text-sm transition">Logout</button>
+    </div>
+  </div>
+</nav>
+
+<div id="reminder-banner" class="hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-center text-amber-800 text-sm font-medium"></div>
+
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
+    <div class="bg-white rounded-2xl shadow p-6 card-hover border-b-4 border-[#3c7d80]">
+      <p class="text-sm text-gray-500 mb-1">Total Users</p>
+      <p id="stat-users" class="text-3xl font-bold text-[#3c7d80]">—</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow p-6 card-hover border-b-4 border-blue-500">
+      <p class="text-sm text-gray-500 mb-1">Total Events</p>
+      <p id="stat-events" class="text-3xl font-bold text-blue-600">—</p>
+    </div>
+    <div class="bg-white rounded-2xl shadow p-6 card-hover border-b-4 border-green-500">
+      <p class="text-sm text-gray-500 mb-1">Total Registrations</p>
+      <p id="stat-regs" class="text-3xl font-bold text-green-600">—</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+
+    <div class="xl:col-span-1">
+      <div class="bg-white rounded-2xl shadow p-6 sticky top-20">
+        <h2 id="form-heading" class="text-xl font-bold text-gray-800 mb-5">Create New Event</h2>
+        <div id="form-error" class="hidden mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"></div>
+        <div id="form-success" class="hidden mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm"></div>
+
+        <form id="event-form" class="space-y-4">
+          <input type="hidden" id="edit-id"/>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Event Title *</label>
+            <input id="f-title" type="text" required
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3c7d80] text-sm"
+              placeholder="LangChain Workshop"/>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea id="f-description" rows="3"
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3c7d80] text-sm resize-none"
+              placeholder="Event details"></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <input id="f-location" type="text"
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3c7d80] text-sm"
+              placeholder="KR Mangalam University"/>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Date &amp; Time *</label>
+            <input id="f-date" type="datetime-local" required
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3c7d80] text-sm"/>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Max Capacity *</label>
+            <input id="f-capacity" type="number" min="1" required value="100"
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#3c7d80] text-sm"/>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button type="submit"
+              class="flex-1 py-2.5 bg-[#3c7d80] text-white font-semibold rounded-xl hover:opacity-90 transition text-sm">
+              <span id="form-btn-text">Create Event</span>
+            </button>
+            <button type="button" id="cancel-edit-btn" onclick="cancelEdit()"
+              class="hidden px-4 py-2.5 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-50 transition text-sm">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="xl:col-span-2">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-800">My Events</h2>
+        <button onclick="loadEvents()"
+          class="text-sm text-[#3c7d80] hover:underline flex items-center gap-1">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <div id="events-container" class="space-y-4">
+      </div>
+
+      <div id="empty-state" class="hidden text-center py-16 text-gray-400">
+        <svg class="w-16 h-16 mx-auto mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <p class="font-medium">No events yet</p>
+        <p class="text-sm">Create your first event using the form</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-8 bg-white rounded-2xl shadow p-6">
+    <h2 class="text-xl font-bold text-gray-800 mb-4">Most Popular Events</h2>
+    <div id="popular-events" class="space-y-3"></div>
+  </div>
+</div>
+
+<div id="modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between p-6 border-b">
+      <div>
+        <h3 class="text-xl font-bold text-gray-800" id="modal-title">Registrations</h3>
+        <p class="text-sm text-gray-500 mt-0.5" id="modal-subtitle"></p>
+      </div>
+      <div class="flex items-center gap-2">
+        <a id="export-csv-btn" href="#" target="_blank"
+          class="px-3 py-1.5 bg-green-50 border border-green-200 text-green-700 text-xs rounded-lg hover:bg-green-100 transition flex items-center gap-1">
+          ⬇ CSV
+        </a>
+        <button onclick="closeModal()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500">✕</button>
+      </div>
+    </div>
+    <div id="modal-body" class="overflow-y-auto p-6 flex-1">
+      <p class="text-gray-500 text-sm">Loading</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TOKEN = localStorage.getItem('token');
+const USER  = JSON.parse(localStorage.getItem('user') || '{}');
+
+if (!TOKEN || USER.role !== 'organizer') {
+  window.location.href = '/login';
+}
+document.getElementById('user-name').textContent = USER.name || '';
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+    ...opts,
+  });
+  if (res.status === 401) { window.location.href = '/login'; }
+  return res;
+}
+
+const socket = io();
+socket.on('update_count', ({ event_id, new_count, max_capacity }) => {
+  const el = document.getElementById(`count-${event_id}`);
+  if (el) {
+    el.textContent = new_count;
+    el.parentElement.parentElement.querySelector('.progress-bar').style.width =
+      Math.min((new_count / max_capacity) * 100, 100) + '%';
+  }
+  loadAnalytics();
+});
+
+socket.on('event_reminder', (data) => {
+  const b = document.getElementById('reminder-banner');
+  b.textContent = `⏰ Reminder: "${data.title}" starts within 24 hours! Location: ${data.location || 'TBD'}`;
+  b.classList.remove('hidden');
+});
+
+async function loadAnalytics() {
+  const res  = await api('/api/events/analytics/summary');
+  const data = await res.json();
+  document.getElementById('stat-users').textContent  = data.total_users;
+  document.getElementById('stat-events').textContent = data.total_events;
+  document.getElementById('stat-regs').textContent   = data.total_registrations;
+
+  const popularEl = document.getElementById('popular-events');
+  if (!data.most_popular_events.length) {
+    popularEl.innerHTML = '<p class="text-gray-400 text-sm">No registrations yet.</p>';
+    return;
+  }
+  const max = data.most_popular_events[0].registration_count;
+  popularEl.innerHTML = data.most_popular_events.map((e, i) => `
+    <div class="flex items-center gap-4">
+      <span class="w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center ${i===0?'bg-yellow-100 text-yellow-700':i===1?'bg-gray-100 text-gray-600':'bg-[#3c7d80]/10 text-[#3c7d80]'}">${i+1}</span>
+      <div class="flex-1">
+        <div class="flex justify-between text-sm mb-1">
+          <span class="font-medium text-gray-700">${e.title}</span>
+          <span class="text-[#3c7d80] font-bold">${e.registration_count} registered</span>
+        </div>
+        <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-[#3c7d80] rounded-full progress-bar" style="width:${(e.registration_count/max)*100}%"></div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadEvents() {
+  const res    = await api('/api/events/my');
+  const events = await res.json();
+  const container = document.getElementById('events-container');
+  const empty     = document.getElementById('empty-state');
+
+  if (!events.length) {
+    container.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  container.innerHTML = events.map(ev => {
+    const pct  = Math.min((ev.registration_count / ev.max_capacity) * 100, 100);
+    const full = ev.registration_count >= ev.max_capacity;
+    const date = new Date(ev.event_date).toLocaleString();
+    return `
+    <div class="bg-white rounded-2xl shadow p-5 card-hover fade-in">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <h3 class="text-lg font-bold text-gray-800 truncate">${ev.title}</h3>
+            ${full ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">Full</span>' : ''}
+          </div>
+          ${ev.description ? `<p class="text-gray-500 text-sm mt-1 line-clamp-2">${ev.description}</p>` : ''}
+          <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-gray-500">
+            <span>${date}</span>
+            ${ev.location ? `<span>${ev.location}</span>` : ''}
+          </div>
+        </div>
+        <div class="flex gap-2 flex-shrink-0">
+          <button onclick="viewRegistrations(${ev.id})"
+            class="px-3 py-1.5 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition">
+            View
+          </button>
+          <button onclick="editEvent(${ev.id})"
+            class="px-3 py-1.5 text-xs bg-[#3c7d80]/5 text-[#3c7d80] border border-[#3c7d80]/20 rounded-lg hover:bg-[#3c7d80]/10 transition">
+            Edit
+          </button>
+          <button onclick="deleteEvent(${ev.id})"
+            class="px-3 py-1.5 text-xs bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition">
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <div class="flex justify-between text-xs text-gray-500 mb-1">
+          <span>Registrations</span>
+          <span>
+            <span id="count-${ev.id}" class="font-bold text-[#3c7d80]">${ev.registration_count}</span>
+            / ${ev.max_capacity}
+          </span>
+        </div>
+        <div class="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full rounded-full progress-bar ${pct >= 100 ? 'bg-red-500' : pct >= 75 ? 'bg-amber-500' : 'bg-[#3c7d80]'}"
+               style="width:${pct}%"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let editingId = null;
+const eventsCache = {};
+
+document.getElementById('event-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('form-error');
+  const okEl  = document.getElementById('form-success');
+  errEl.classList.add('hidden');
+  okEl.classList.add('hidden');
+
+  const payload = {
+    title:        document.getElementById('f-title').value,
+    description:  document.getElementById('f-description').value,
+    location:     document.getElementById('f-location').value,
+    event_date:   document.getElementById('f-date').value,
+    max_capacity: parseInt(document.getElementById('f-capacity').value),
+  };
+
+  const url    = editingId ? `/api/events/${editingId}` : '/api/events/';
+  const method = editingId ? 'PUT' : 'POST';
+
+  const res  = await api(url, { method, body: JSON.stringify(payload) });
+  const data = await res.json();
+
+  if (!res.ok) {
+    errEl.textContent = data.error || 'Something went wrong';
+    errEl.classList.remove('hidden');
+  } else {
+    okEl.textContent = editingId ? 'Event updated!' : 'Event created!';
+    okEl.classList.remove('hidden');
+    cancelEdit();
+    loadEvents();
+    loadAnalytics();
+    setTimeout(() => okEl.classList.add('hidden'), 2500);
+  }
+});
+
+function editEvent(id) {
+  const card = document.getElementById(`count-${id}`)?.closest('.bg-white');
+
+  api(`/api/events/${id}`).then(r => r.json()).then(ev => {
+    editingId = id;
+    document.getElementById('f-title').value       = ev.title;
+    document.getElementById('f-description').value = ev.description || '';
+    document.getElementById('f-location').value    = ev.location || '';
+    document.getElementById('f-capacity').value    = ev.max_capacity;
+    
+    const d = new Date(ev.event_date);
+    document.getElementById('f-date').value = d.toISOString().slice(0,16);
+    document.getElementById('form-heading').textContent = 'Edit Event';
+    document.getElementById('form-btn-text').textContent = 'Update Event';
+    document.getElementById('cancel-edit-btn').classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+}
+
+function cancelEdit() {
+  editingId = null;
+  document.getElementById('event-form').reset();
+  document.getElementById('form-heading').textContent   = 'Create New Event';
+  document.getElementById('form-btn-text').textContent  = 'Create Event';
+  document.getElementById('cancel-edit-btn').classList.add('hidden');
+  document.getElementById('form-error').classList.add('hidden');
+  document.getElementById('form-success').classList.add('hidden');
+}
+
+async function deleteEvent(id) {
+  if (!confirm('Delete this event? All registrations will be removed.')) return;
+  const res = await api(`/api/events/${id}`, { method: 'DELETE' });
+  if (res.ok) { loadEvents(); loadAnalytics(); }
+}
+
+async function viewRegistrations(eventId) {
+  document.getElementById('modal').classList.remove('hidden');
+  document.getElementById('modal-body').innerHTML = '<p class="text-gray-500 text-sm">Loading…</p>';
+
+  const res  = await api(`/api/events/${eventId}/registrations`);
+  const data = await res.json();
+
+  document.getElementById('modal-title').textContent    = data.event.title;
+  document.getElementById('modal-subtitle').textContent = `${data.count} / ${data.event.max_capacity} registered`;
+  document.getElementById('export-csv-btn').href =
+    `/api/events/${eventId}/registrations/export?token=${TOKEN}`;
+
+  if (!data.registrations.length) {
+    document.getElementById('modal-body').innerHTML =
+      '<p class="text-gray-400 text-center py-8">No registrations yet.</p>';
+    return;
+  }
+
+  document.getElementById('modal-body').innerHTML = `
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b text-gray-500">
+          <th class="text-left pb-3 font-medium">#</th>
+          <th class="text-left pb-3 font-medium">Name</th>
+          <th class="text-left pb-3 font-medium">Email</th>
+          <th class="text-left pb-3 font-medium">Registered At</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.registrations.map((r, i) => `
+          <tr class="border-b last:border-0 hover:bg-gray-50 transition">
+            <td class="py-3 text-gray-400">${i+1}</td>
+            <td class="py-3 font-medium text-gray-800">${r.user_name}</td>
+            <td class="py-3 text-gray-500">${r.user_email}</td>
+            <td class="py-3 text-gray-400">${new Date(r.registered_at).toLocaleString()}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>`;
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.add('hidden');
+}
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+async function logout() {
+  await api('/api/auth/logout', { method: 'POST' });
+  localStorage.clear();
+  window.location.href = '/login';
+}
+
+loadEvents();
+loadAnalytics();
+</script>
+{% endblock %}
