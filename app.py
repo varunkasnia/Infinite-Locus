@@ -1,7 +1,7 @@
 import eventlet
-import os
 eventlet.monkey_patch()
 
+import os
 from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, redirect, url_for
 from config import Config
